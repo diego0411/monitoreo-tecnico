@@ -33,7 +33,7 @@ const FormularioUbicacion = () => {
       return;
     }
 
-    const { error } = await supabase.from('ubicaciones').insert([
+    const { error } = await supabase.from('zonas_controladas').insert([
       {
         nombre,
         lat: parseFloat(lat),

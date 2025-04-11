@@ -4,32 +4,14 @@ import { supabase } from '../../supabase/client';
 const UbicacionesTable = () => {
   const [ubicaciones, setUbicaciones] = useState([]);
 
-  // 📍 Lista de coordenadas personalizadas
-  const ubicacionesPersonalizadas = [
-    {
-      nombre: "Integrat360 S.R.L",
-      lat: -17.747144,
-      lon: -63.153264,
-      tolerancia: 0.1, /// 1 km de margen
-    },
-    {
-      nombre: "Banco Economico",
-      lat: -17.78439868334796,
-      lon: -63.18304543040687,
-      tolerancia: 0.1, /// 1 km de margen
-    },
-    
-  ];
-  
-
-  // ✅ Verifica si las coordenadas coinciden con una ubicación personalizada
-  const buscarNombrePersonalizado = (lat, lon) => {
-    for (const ubic of ubicacionesPersonalizadas) {
+  // ✅ Verifica si las coordenadas coinciden con una zona controlada de Supabase
+  const buscarNombreZona = (lat, lon, zonas) => {
+    for (const zona of zonas) {
       const dentroDelRango =
-        Math.abs(lat - ubic.lat) <= ubic.tolerancia &&
-        Math.abs(lon - ubic.lon) <= ubic.tolerancia;
+        Math.abs(lat - zona.lat) <= zona.tolerancia &&
+        Math.abs(lon - zona.lon) <= zona.tolerancia;
       if (dentroDelRango) {
-        return ubic.nombre;
+        return zona.nombre;
       }
     }
     return null;
@@ -42,9 +24,6 @@ const UbicacionesTable = () => {
 
   // ✅ Obtiene dirección desde latitud y longitud o devuelve nombre personalizado
   const obtenerDireccion = async (lat, lon) => {
-    const nombrePersonalizado = buscarNombrePersonalizado(lat, lon);
-    if (nombrePersonalizado) return nombrePersonalizado;
-
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`
@@ -70,9 +49,19 @@ const UbicacionesTable = () => {
     }
   };
 
-  // ✅ Obtiene ubicaciones y convierte coordenadas en direcciones o nombres personalizados
+  // ✅ Obtiene ubicaciones y convierte coordenadas en direcciones o zonas
   useEffect(() => {
     const obtenerDatos = async () => {
+      // 🗺️ Obtener zonas controladas desde Supabase
+      const { data: zonas, error: errorZonas } = await supabase
+        .from('zonas_controladas')
+        .select('nombre, lat, lon, tolerancia');
+
+      if (errorZonas) {
+        console.error('Error al obtener zonas controladas:', errorZonas);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('ubicaciones')
         .select(`
@@ -92,7 +81,8 @@ const UbicacionesTable = () => {
       } else {
         const datosConDireccion = await Promise.all(
           data.map(async (ubic) => {
-            const direccion = await obtenerDireccion(ubic.latitud, ubic.longitud);
+            const nombreZona = buscarNombreZona(ubic.latitud, ubic.longitud, zonas);
+            const direccion = nombreZona || await obtenerDireccion(ubic.latitud, ubic.longitud);
             return { ...ubic, direccion };
           })
         );
